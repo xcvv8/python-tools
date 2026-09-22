@@ -2,7 +2,8 @@ import sys
 import requests
 import socket
 from concurrent.futures import ThreadPoolExecutor
-
+import ipaddress
+import subprocess
 
 def scan_port(ip, port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -14,9 +15,23 @@ def scan_port(ip, port):
     return None
 
 
+
+def  ping_host(ip):
+    try:
+        result = subprocess.run(["ping", "-c", "1", ip], capture_output=True)
+    except subprocess.SubprocessError:
+        return 
+    if result.returncode == 0:
+        return ip
+    else:
+        return 
+
+
+
 if len(sys.argv) < 3:
     print("Benutzung: python3 nettools.py <modus> <ziel>")
     print("Beispiel: python3 nettools.py grab-header example.com")
+    print("Benutzung: python3 nettools.py ping-sweep <subnetz>")
     sys.exit(1)
 
 modus = sys.argv[1]
@@ -45,7 +60,9 @@ elif modus == "port-scan":
     except socket.gaierror:
         print("Fehlermeldung")
         sys.exit(1)
-
+        
+        
+        
     teile = range_str.split("-")
     start = int(teile[0])
     ende = int(teile[1])
@@ -70,3 +87,41 @@ elif modus == "port-scan":
                 print(f"Port {result} ist offen")
                 
     print(f"Es wurden {len(offene_ports)} offene Ports gefunden")
+    
+
+
+elif modus == "ping-sweep":
+    if len(sys.argv) < 3:
+        print("Benutzung: python3 nettools.py ping-sweep <subnetz>")
+        sys.exit(1)
+        
+    subnetz_str = sys.argv[2]
+    
+    try:
+        ipaddress.ip_network(subnetz_str, strict=False)
+    except ValueError:
+        print("Ungültiges Subnetz")
+        sys.exit(1)
+
+    hosts = []
+    netz = ipaddress.ip_network(subnetz_str, strict=False)
+    for ip in netz.hosts():
+        hosts.append(str(ip))
+    
+    print(f"Scanne Subnetz {subnetz_str} ({len(hosts)} Hosts)...")
+    
+    offene_hosts = []
+    futures = []
+    with ThreadPoolExecutor(max_workers=100) as pool:
+        for host in hosts:
+            future =  pool.submit(ping_host, host)
+            futures.append(future)
+            
+        for future in futures:
+            result = future.result()
+            if result is not None:
+                offene_hosts.append(result)
+                print(f"{result} ist erreichbar")
+                
+    print(f"Es wurden {len(offene_hosts)} erreichbare Hosts gefunden")
+    
