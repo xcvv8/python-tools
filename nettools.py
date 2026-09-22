@@ -1,39 +1,18 @@
-# nettools.py — Network Toolkit
-#
-# Modus 1: grab-header
-# 1. Nutzer gibt URL ein
-# 2. Wenn URL nicht mit http:// oder https:// beginnt → https:// davor hängen
-# 3. Wenn URL gültig ist: HTTP-Anfrage an die URL schicken
-# 4. Fehler abfangen: kein Internet / Timeout / ungültige URL
-#    Wenn Fehler: Fehlermeldung ausgeben und Programm beenden
-# 5. Für jeden Header in der Antwort: Name und Wert ausgeben
-#
-# Beispielhafte Ausgabe für die URL example.com:
-# Server: nginx/1.24.0
-# Content-Type: text/html
-
-    # 2. wenn ziel nicht mit http beginnt: https:// davor
-    # 3. anfrage mit requests schicken
-    # 4. wenn fehler: meldung + ende
-    # 5. für jeden header in antwort: print name + wert
-
-
-
-
-#Öffne die requests-Doku (google requests readthedocs quickstart)
-
-#Finde raus wie man auf die Header zugreift
-
-#robiere es erst mit einem einzelnen print(antwort.<was auch immer>) aus
-
-#Dann mit einer Schleife durch alle Header
-
-
-
-
-
 import sys
 import requests
+import socket
+from concurrent.futures import ThreadPoolExecutor
+
+
+def scan_port(ip, port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(0.5)
+    ergebnis = s.connect_ex((ip, port))
+    s.close()
+    if ergebnis == 0:
+        return port
+    return None
+
 
 if len(sys.argv) < 3:
     print("Benutzung: python3 nettools.py <modus> <ziel>")
@@ -53,3 +32,41 @@ if modus == "grab-header":
     except requests.exceptions.RequestException as e:
         print(f"Fehler: {e}")
         sys.exit(1)
+
+elif modus == "port-scan":
+    if len(sys.argv) < 4:
+        print("Benutzung: python3 nettools.py port-scan <host> <port-range>")
+        sys.exit(1)
+    host = sys.argv[2]
+    range_str = sys.argv[3]
+
+    try:
+        ip = socket.gethostbyname(host)
+    except socket.gaierror:
+        print("Fehlermeldung")
+        sys.exit(1)
+
+    teile = range_str.split("-")
+    start = int(teile[0])
+    ende = int(teile[1])
+
+    print(f"Host: {host}")
+    print(f"Ip: {ip}")
+    print(f"start: {start}")
+    print(f"ende: {ende}")
+    
+    
+    offene_ports = []
+    futures = []
+    with ThreadPoolExecutor(max_workers=100) as pool:
+        for port in range(start, ende + 1):
+            future = pool.submit(scan_port, ip, port)
+            futures.append(future) 
+            
+        for future in futures:
+            result = future.result()
+            if result is not None:
+                offene_ports.append(result)
+                print(f"Port {result} ist offen")
+                
+    print(f"Es wurden {len(offene_ports)} offene Ports gefunden")
