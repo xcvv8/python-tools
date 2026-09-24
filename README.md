@@ -1,4 +1,3 @@
-nettools
 
 Hab ich gebaut um Python zu lernen. Ist ein kleines Netzwerk-Tool
 mit drei Funktionen die man im Terminal aufruft.
